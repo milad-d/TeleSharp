@@ -15,23 +15,30 @@ namespace TeleSharp
 {
     public class TeleSharp
     {
-        private readonly int Timeout = 5;
+        private readonly int _timeout = 5;
         private readonly string _authToken;
         private readonly RestClient _botClient;
         private User _me;
         private int _lastFetchedMessageId;
 
         #region Events
+
         public delegate void MessageDelegate(Message message);
+
         public event MessageDelegate OnMessage;
 
         public delegate void InlineDelegate(InlineQuery inlineQuery);
+
         public event InlineDelegate OnInlineQuery;
 
         public delegate void ChooseInlineResultDelegate(ChosenInlineResult inlineResult);
+
         public event ChooseInlineResultDelegate OnChooseInlineResult;
+
         public delegate void CallbackQueryDelegate(CallbackQuery CallbackQuery);
+
         public event CallbackQueryDelegate OnCallbackQuery;
+
         #endregion
 
         /// <summary>
@@ -57,15 +64,9 @@ namespace TeleSharp
         /// Gets the current bot basic information
         /// </summary>
         /// <returns>Basic information about the bot</returns>
-        public User Me
-        {
-            get
-            {
-                if (_me != null) return _me;
-
-                return _me = _botClient.Execute<User>(Utils.GenerateRestRequest(Resources.Method_GetMe, Method.POST)).Data;
-            }
-        }
+        public User Me =>
+                _me ??
+                (_me = _botClient.Execute<User>(Utils.GenerateRestRequest(Resources.Method_GetMe, Method.POST)).Data);
 
         /// <summary>
         /// Get messages sent to the bot by all 
@@ -75,10 +76,12 @@ namespace TeleSharp
         {
             try
             {
-                var request = Utils.GenerateRestRequest(Resources.Method_GetUpdates, Method.POST, null,
+                var request = Utils.GenerateRestRequest(Resources.Method_GetUpdates,
+                    Method.POST,
+                    null,
                     new Dictionary<string, object>
                     {
-                        {Resources.Param_Timeout, Timeout},
+                        {Resources.Param_Timeout, _timeout},
                         {Resources.Param_Offset, _lastFetchedMessageId + 1},
                     });
 
@@ -90,12 +93,10 @@ namespace TeleSharp
                 if (!response.Data.Any()) return new List<Update>();
 
                 _lastFetchedMessageId = response.Data.Last().UpdateId;
-                //var rawData = response.Data.Select(d => d.Message);
 
                 return response.Data;
-                //return rawData.Select(d => (d.Chat.Title == null ? d.AsUserMessage() : d)).ToList();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return new List<Update>();
             }
@@ -110,26 +111,31 @@ namespace TeleSharp
             {
                 var updates = await PollMessages();
 
-                foreach (Update update in updates)
+                foreach (var update in updates)
                 {
-                    if (update.Message != null)
-                    {
-                        OnMessage?.Invoke(update.Message);
-                        continue;
-                    }
-
-                    if (update.InlineQuery != null)
-                    {
-                        OnInlineQuery?.Invoke(update.InlineQuery);
-                        continue;
-                    }
-
-                    if (update.ChosenInlineResult != null)
-                        OnChooseInlineResult?.Invoke(update.ChosenInlineResult);
-                    if (update.CallbackQuery != null)
-                        OnCallbackQuery?.Invoke(update.CallbackQuery);
+                    HandleMessage(update);
                 }
             }
+        }
+
+        private void HandleMessage(Update update)
+        {
+            if (update.Message != null)
+            {
+                OnMessage?.Invoke(update.Message);
+                return;
+            }
+
+            if (update.InlineQuery != null)
+            {
+                OnInlineQuery?.Invoke(update.InlineQuery);
+                return;
+            }
+
+            if (update.ChosenInlineResult != null)
+                OnChooseInlineResult?.Invoke(update.ChosenInlineResult);
+            if (update.CallbackQuery != null)
+                OnCallbackQuery?.Invoke(update.CallbackQuery);
         }
 
         /// <summary>
@@ -142,7 +148,9 @@ namespace TeleSharp
             if (messageParams == null)
                 throw new ArgumentNullException(nameof(messageParams));
 
-            var request = Utils.GenerateRestRequest(Resources.Method_SendMessage, Method.POST, null,
+            var request = Utils.GenerateRestRequest(Resources.Method_SendMessage,
+                Method.POST,
+                null,
                 new Dictionary<string, object>
                 {
                     {Resources.Param_ChatId, messageParams.ChatId},
@@ -162,45 +170,77 @@ namespace TeleSharp
                     new RestRequest().JsonSerializer.Serialize(messageParams.InlineKeyboard));
             if (messageParams.ReplyKeyboardRemove != null)
                 request.AddParameter(Resources.Param_ReplyMarkup,
-                   new RestRequest().JsonSerializer.Serialize(messageParams.ReplyKeyboardRemove));
+                    new RestRequest().JsonSerializer.Serialize(messageParams.ReplyKeyboardRemove));
 
             var result = _botClient.Execute<Message>(request);
             return result.Data;
         }
-        public Message AnswerCallbackQuery(CallbackQuery sender, string text = null, bool? show_alert = null, string url = null, int? cache_time = null)
+
+        public Message AnswerCallbackQuery(CallbackQuery sender,
+            string text = null,
+            bool? showAlert = null,
+            string url = null,
+            int? cacheTime = null)
         {
             if (sender == null)
                 throw new ArgumentNullException(nameof(sender));
-            var request = Utils.GenerateRestRequest(Resources.Method_AnswerCallbackQuery, Method.POST,
-               new Dictionary<string, string>
-               {
+
+            var request = Utils.GenerateRestRequest(Resources.Method_AnswerCallbackQuery,
+                Method.POST,
+                new Dictionary<string, string>
+                {
                     {Resources.HttpContentType, Resources.HttpMultiPartFormData}
-               }
-               , new Dictionary<string, object>
-               {
+                }
+                ,
+                new Dictionary<string, object>
+                {
                     {Resources.Param_CallbackQueryId, sender.Id},
-               });
+                });
             if (!string.IsNullOrEmpty(text))
-                request.Parameters.Add(new Parameter { Name = Resources.Param_Text, Value = text, Type = ParameterType.GetOrPost });
-            if (show_alert != null)
-                request.Parameters.Add(new Parameter { Name = Resources.Param_show_alert, Value = show_alert, Type = ParameterType.GetOrPost });
+                request.Parameters.Add(new Parameter
+                {
+                    Name = Resources.Param_Text,
+                    Value = text,
+                    Type = ParameterType.GetOrPost
+                });
+            if (showAlert != null)
+                request.Parameters.Add(new Parameter
+                {
+                    Name = Resources.Param_show_alert,
+                    Value = showAlert,
+                    Type = ParameterType.GetOrPost
+                });
             if (!string.IsNullOrEmpty(url))
-                request.Parameters.Add(new Parameter { Name = Resources.Param_url, Value = url, Type = ParameterType.GetOrPost });
-            if (cache_time != null)
-                request.Parameters.Add(new Parameter { Name = Resources.Param_CacheTime, Value = cache_time, Type = ParameterType.GetOrPost });
+                request.Parameters.Add(new Parameter
+                {
+                    Name = Resources.Param_url,
+                    Value = url,
+                    Type = ParameterType.GetOrPost
+                });
+            if (cacheTime != null)
+                request.Parameters.Add(new Parameter
+                {
+                    Name = Resources.Param_CacheTime,
+                    Value = cacheTime,
+                    Type = ParameterType.GetOrPost
+                });
+
             return _botClient.Execute<Message>(request).Data;
         }
+
         public Message EditMessageText(SendMessageParams messageParams)
         {
             if (messageParams == null)
                 throw new ArgumentNullException(nameof(messageParams));
 
-            var request = Utils.GenerateRestRequest(Resources.Method_EditMessageText, Method.POST, null,
+            var request = Utils.GenerateRestRequest(Resources.Method_EditMessageText,
+                Method.POST,
+                null,
                 new Dictionary<string, object>
                 {
                     {Resources.Param_ChatId, messageParams.ChatId},
-                    {Resources.Param_MessageId,messageParams.MessageId },
-                    {Resources.Param_InlineMessageId,messageParams.InlineMessageId },
+                    {Resources.Param_MessageId, messageParams.MessageId},
+                    {Resources.Param_InlineMessageId, messageParams.InlineMessageId},
                     {Resources.Param_Text, messageParams.Text},
                     {Resources.Param_ParseMode, messageParams.ParseMode},
                     {Resources.Param_DisableWebPagePreview, messageParams.DisableWebPagePreview},
@@ -211,6 +251,7 @@ namespace TeleSharp
             var result = _botClient.Execute<Message>(request);
             return result.Data;
         }
+
         /// <summary>
         /// Indicates that the bot is doing a specified action
         /// </summary>
@@ -253,7 +294,9 @@ namespace TeleSharp
             if (string.IsNullOrEmpty(actionName))
                 return;
 
-            var request = Utils.GenerateRestRequest(Resources.Method_SendChatAction, Method.POST, null,
+            var request = Utils.GenerateRestRequest(Resources.Method_SendChatAction,
+                Method.POST,
+                null,
                 new Dictionary<string, object>
                 {
                     {Resources.Param_ChatId, sender.Id},
@@ -277,12 +320,14 @@ namespace TeleSharp
             if (sender == null)
                 throw new ArgumentNullException(nameof(sender));
 
-            var request = Utils.GenerateRestRequest(Resources.Method_ForwardMessage, Method.POST,
+            var request = Utils.GenerateRestRequest(Resources.Method_ForwardMessage,
+                Method.POST,
                 new Dictionary<string, string>
                 {
                     {Resources.HttpContentType, Resources.HttpMultiPartFormData}
                 }
-                , new Dictionary<string, object>
+                ,
+                new Dictionary<string, object>
                 {
                     {Resources.Param_ChatId, sender.Id},
                     {Resources.Param_FromChatId, message.Chat?.Id ?? message.From.Id},
@@ -308,19 +353,22 @@ namespace TeleSharp
             if (imageBuffer == null)
                 throw new ArgumentNullException(nameof(imageBuffer));
 
-            var request = Utils.GenerateRestRequest(Resources.Method_SendPhoto, Method.POST,
+            var request = Utils.GenerateRestRequest(Resources.Method_SendPhoto,
+                Method.POST,
                 new Dictionary<string, string>
                 {
                     {Resources.HttpContentType, Resources.HttpMultiPartFormData}
                 }
-                , new Dictionary<string, object>
+                ,
+                new Dictionary<string, object>
                 {
                     {Resources.Param_ChatId, sender.Id},
                     {Resources.Param_Caption, caption}
                 },
                 new List<Tuple<string, byte[], string>>
                 {
-                    new Tuple<string, byte[], string>(Resources.PhotoFile, imageBuffer,
+                    new Tuple<string, byte[], string>(Resources.PhotoFile,
+                        imageBuffer,
                         filename ?? Utils.ComputeFileMd5Hash(imageBuffer) + ".jpg")
                 });
 
@@ -343,19 +391,22 @@ namespace TeleSharp
             if (videoBuffer == null)
                 throw new ArgumentNullException(nameof(videoBuffer));
 
-            var request = Utils.GenerateRestRequest(Resources.Method_SendVideo, Method.POST,
+            var request = Utils.GenerateRestRequest(Resources.Method_SendVideo,
+                Method.POST,
                 new Dictionary<string, string>
                 {
                     {Resources.HttpContentType, Resources.HttpMultiPartFormData}
                 }
-                , new Dictionary<string, object>
+                ,
+                new Dictionary<string, object>
                 {
                     {Resources.Param_ChatId, sender.Id},
                     {Resources.Param_Caption, caption}
                 },
                 new List<Tuple<string, byte[], string>>
                 {
-                    new Tuple<string, byte[], string>(Resources.VideoFile, videoBuffer,
+                    new Tuple<string, byte[], string>(Resources.VideoFile,
+                        videoBuffer,
                         filename ?? Utils.ComputeFileMd5Hash(videoBuffer) + ".mp4")
                 });
 
@@ -377,18 +428,21 @@ namespace TeleSharp
             if (audioBuffer == null)
                 throw new ArgumentNullException(nameof(audioBuffer));
 
-            var request = Utils.GenerateRestRequest(Resources.Method_SendAudio, Method.POST,
+            var request = Utils.GenerateRestRequest(Resources.Method_SendAudio,
+                Method.POST,
                 new Dictionary<string, string>
                 {
                     {Resources.HttpContentType, Resources.HttpMultiPartFormData}
                 }
-                , new Dictionary<string, object>
+                ,
+                new Dictionary<string, object>
                 {
                     {Resources.Param_ChatId, sender.Id}
                 },
                 new List<Tuple<string, byte[], string>>
                 {
-                    new Tuple<string, byte[], string>(Resources.AudioFile, audioBuffer,
+                    new Tuple<string, byte[], string>(Resources.AudioFile,
+                        audioBuffer,
                         filename ?? Utils.ComputeFileMd5Hash(audioBuffer) + ".mp3")
                 });
 
@@ -403,18 +457,21 @@ namespace TeleSharp
             if (fileBuffer == null)
                 throw new ArgumentNullException(nameof(fileBuffer));
 
-            var request = Utils.GenerateRestRequest(Resources.Method_SendDocument, Method.POST,
+            var request = Utils.GenerateRestRequest(Resources.Method_SendDocument,
+                Method.POST,
                 new Dictionary<string, string>
                 {
                     {Resources.HttpContentType, Resources.HttpMultiPartFormData}
                 }
-                , new Dictionary<string, object>
+                ,
+                new Dictionary<string, object>
                 {
                     {Resources.Param_ChatId, sender.Id}
                 },
                 new List<Tuple<string, byte[], string>>
                 {
-                    new Tuple<string, byte[], string>(Resources.DocumentFile, fileBuffer,
+                    new Tuple<string, byte[], string>(Resources.DocumentFile,
+                        fileBuffer,
                         filename ?? Utils.ComputeFileMd5Hash(fileBuffer))
                 });
 
@@ -435,12 +492,14 @@ namespace TeleSharp
             if (stickerBuffer == null)
                 throw new ArgumentNullException(nameof(stickerBuffer));
 
-            var request = Utils.GenerateRestRequest(Resources.Method_SendSticker, Method.POST,
+            var request = Utils.GenerateRestRequest(Resources.Method_SendSticker,
+                Method.POST,
                 new Dictionary<string, string>
                 {
                     {Resources.HttpContentType, Resources.HttpMultiPartFormData}
                 }
-                , new Dictionary<string, object>
+                ,
+                new Dictionary<string, object>
                 {
                     {Resources.Param_ChatId, sender.Id}
                 },
@@ -464,12 +523,14 @@ namespace TeleSharp
             if (sender == null)
                 throw new ArgumentNullException(nameof(sender));
 
-            var request = Utils.GenerateRestRequest(Resources.Method_SendLocation, Method.POST,
+            var request = Utils.GenerateRestRequest(Resources.Method_SendLocation,
+                Method.POST,
                 new Dictionary<string, string>
                 {
                     {Resources.HttpContentType, Resources.HttpMultiPartFormData}
                 }
-                , new Dictionary<string, object>
+                ,
+                new Dictionary<string, object>
                 {
                     {Resources.Param_ChatId, sender.Id},
                     {Resources.Param_Latitude, latitude},
@@ -484,12 +545,14 @@ namespace TeleSharp
             if (answer == null)
                 throw new ArgumentNullException(nameof(answer));
 
-            var request = Utils.GenerateRestRequest(Resources.Method_AnswerInlineQuery, Method.POST,
+            var request = Utils.GenerateRestRequest(Resources.Method_AnswerInlineQuery,
+                Method.POST,
                 new Dictionary<string, string>
                 {
                     {Resources.HttpContentType, Resources.HttpMultiPartFormData}
                 }
-                , new Dictionary<string, object>
+                ,
+                new Dictionary<string, object>
                 {
                     {Resources.Param_InlineQueryid, answer.InlineQueryId},
                     {Resources.Param_Results, new RestRequest().JsonSerializer.Serialize(answer.Results)},
@@ -511,8 +574,11 @@ namespace TeleSharp
             if (userId <= 0)
                 throw new ArgumentNullException(nameof(userId));
 
-            var request = Utils.GenerateRestRequest(Resources.Method_GetUserProfilePhotos, Method.POST, null
-                , new Dictionary<string, object>
+            var request = Utils.GenerateRestRequest(Resources.Method_GetUserProfilePhotos,
+                Method.POST,
+                null
+                ,
+                new Dictionary<string, object>
                 {
                     {Resources.Param_UserId, userId},
                 });
@@ -532,7 +598,9 @@ namespace TeleSharp
 
             try
             {
-                var request = Utils.GenerateRestRequest(Resources.Method_GetFile, Method.POST, null,
+                var request = Utils.GenerateRestRequest(Resources.Method_GetFile,
+                    Method.POST,
+                    null,
                     new Dictionary<string, object>
                     {
                         {Resources.Param_FileId, fileId},
@@ -565,7 +633,8 @@ namespace TeleSharp
 
                 using (var wc = new WebClient())
                 {
-                    string downloadUrl = string.Format(Resources.TelegramDownloadDocumentUrl, _authToken,
+                    var downloadUrl = string.Format(Resources.TelegramDownloadDocumentUrl,
+                        _authToken,
                         fileInfo.FilePath);
                     using (var fileStream = new MemoryStream(wc.DownloadData(downloadUrl)))
                         return new FileDownloadResult
@@ -600,12 +669,12 @@ namespace TeleSharp
 
             try
             {
-                FileDownloadResult fileDownload = DownloadFileById(fileId);
+                var fileDownload = DownloadFileById(fileId);
 
                 if (fileDownload == null)
                     return null;
 
-                string filePath = Path.Combine(savePath, fileId) + fileDownload.FileExtension;
+                var filePath = Path.Combine(savePath, fileId) + fileDownload.FileExtension;
                 System.IO.File.WriteAllBytes(filePath, fileDownload.Buffer);
 
                 return fileDownload;

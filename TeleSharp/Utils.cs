@@ -17,9 +17,12 @@ namespace TeleSharp
         /// <param name="parameters">HTTP parameters</param>
         /// <param name="files">Files that must upload using HTTP request</param>
         /// <returns>Generated RestRequest</returns>
-        public static RestRequest GenerateRestRequest(string resource, Method method,
+        public static RestRequest GenerateRestRequest(
+            string resource, 
+            Method method,
             Dictionary<string, string> headers = null,
-            Dictionary<string, object> parameters = null, List<Tuple<string, byte[], string>> files = null)
+            Dictionary<string, object> parameters = null, 
+            List<Tuple<string, byte[], string>> files = null)
         {
             var request = new RestRequest(resource, method)
             {
@@ -27,15 +30,15 @@ namespace TeleSharp
             };
 
             if (headers != null)
-                foreach (KeyValuePair<string, string> header in headers)
+                foreach (var header in headers)
                     request.AddHeader(header.Key, header.Value);
 
             if (parameters != null)
-                foreach (KeyValuePair<string, object> parameter in parameters)
+                foreach (var parameter in parameters)
                     request.AddParameter(parameter.Key, parameter.Value);
 
             if (files != null)
-                foreach (Tuple<string, byte[], string> file in files)
+                foreach (var file in files)
                     request.AddFile(file.Item1, file.Item2, file.Item3);
 
             return request;
@@ -48,9 +51,8 @@ namespace TeleSharp
         /// <returns>MD5 of buffer</returns>
         public static string ComputeFileMd5Hash(byte[] fileBuffer)
         {
-            if ((fileBuffer == null) || (!fileBuffer.Any()))
+            if ((fileBuffer == null) || !fileBuffer.Any())
                 return null;
-
             try
             {
                 using (var md5 = MD5.Create())
